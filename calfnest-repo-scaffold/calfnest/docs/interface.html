@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CALFNEST Sentinel — Monitoring</title>
+<style>
+  :root{
+    --bone:#F5F2EA; --paper:#FBF9F3; --ink:#12261B; --pen:#1B5E20;
+    --green:#2E7D32; --amber:#C9821A; --red:#C0392B;
+    --line:#E2DCCC; --line2:#D0C8B4; --muted:#6B6A5C;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bone);color:var(--ink);font-family:var(--sans);
+    font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 20px 40px}
+
+  /* header */
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding-bottom:14px;border-bottom:2px solid var(--ink)}
+  .mark{width:34px;height:34px;flex:none}
+  .brand h1{font-size:17px;margin:0;letter-spacing:.02em;font-weight:750}
+  .brand p{margin:0;font-size:11px;color:var(--muted);letter-spacing:.14em;
+    text-transform:uppercase}
+  .hspace{flex:1}
+  .pill{font-family:var(--mono);font-size:11px;padding:4px 9px;border:1px solid var(--line2);
+    border-radius:999px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+  .clock{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+  /* layout */
+  .grid{display:grid;grid-template-columns:300px 1fr;gap:18px;margin-top:18px}
+  @media(max-width:840px){.grid{grid-template-columns:1fr}}
+  .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 8px;font-weight:700}
+
+  /* herd list */
+  .herd{display:flex;flex-direction:column;gap:8px}
+  .animal{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+    background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--green);
+    border-radius:9px;padding:10px 12px;cursor:pointer;transition:border-color .15s,transform .1s,box-shadow .15s}
+  .animal:hover{box-shadow:0 2px 10px rgba(18,38,27,.07)}
+  .animal.sel{border-color:var(--ink);box-shadow:0 3px 14px rgba(18,38,27,.1)}
+  .animal.amber{border-left-color:var(--amber)} .animal.red{border-left-color:var(--red)}
+  .stat{width:11px;height:11px;border-radius:50%;background:var(--green);flex:none}
+  .stat.amber{background:var(--amber)} .stat.red{background:var(--red);
+    box-shadow:0 0 0 0 rgba(192,57,43,.5);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,57,43,.5)}70%{box-shadow:0 0 0 7px rgba(192,57,43,0)}100%{box-shadow:0 0 0 0 rgba(192,57,43,0)}}
+  .an-name{font-weight:650;font-size:13.5px}
+  .an-sub{font-size:11px;color:var(--muted)}
+  .an-risk{font-family:var(--mono);font-size:15px;font-weight:600;text-align:right}
+  .an-risk small{display:block;font-size:9px;color:var(--muted);letter-spacing:.08em}
+
+  /* detail */
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:16px}
+  .detail-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .who h2{margin:0;font-size:20px;letter-spacing:.01em}
+  .who .tag{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .statusword{font-family:var(--mono);font-weight:700;letter-spacing:.08em;
+    padding:3px 10px;border-radius:6px;font-size:12px;color:#fff;background:var(--green)}
+  .statusword.amber{background:var(--amber)} .statusword.red{background:var(--red)}
+
+  .hero{display:grid;grid-template-columns:210px 1fr;gap:18px;align-items:center;margin:14px 0 4px}
+  @media(max-width:560px){.hero{grid-template-columns:1fr}}
+  .gauge-wrap{position:relative}
+  .gauge-val{position:absolute;left:0;right:0;top:58%;text-align:center}
+  .gauge-val b{font-family:var(--mono);font-size:34px;font-weight:650;display:block;line-height:1}
+  .gauge-val span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .readouts{display:flex;flex-direction:column;gap:10px}
+  .ro{display:flex;justify-content:space-between;align-items:baseline;
+    border-bottom:1px dashed var(--line2);padding-bottom:7px}
+  .ro .k{font-size:12px;color:var(--muted)}
+  .ro .v{font-family:var(--mono);font-size:14px;font-weight:600}
+  .leadline{font-size:12.5px;background:#EAF3EA;border:1px solid #CFE4CF;color:#1B4D22;
+    border-radius:8px;padding:9px 11px;margin-top:6px;display:none}
+  .leadline.show{display:block}
+  .leadline b{font-family:var(--mono)}
+
+  /* sensor tiles */
+  .sensors{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+  @media(max-width:560px){.sensors{grid-template-columns:repeat(2,1fr)}}
+  .tile{border:1px solid var(--line);border-radius:9px;padding:10px 11px;background:#fff}
+  .tile .lab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .tile .num{font-family:var(--mono);font-size:16px;font-weight:600;margin-top:1px}
+  .tile svg{display:block;margin-top:5px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .chip{font-size:11.5px;font-family:var(--mono);border:1px solid var(--line2);
+    border-radius:999px;padding:4px 10px;color:var(--ink);background:#fff}
+  .chip b{color:var(--pen)}
+  .chip.warn{border-color:#E7C79A;background:#FBF1E0;color:#8a5a12}
+
+  /* controls */
+  .controls{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;
+    border-radius:8px;padding:9px 15px;border:1px solid var(--ink)}
+  .btn-go{background:var(--pen);color:#fff;border-color:var(--pen)}
+  .btn-go:hover{background:#164a1a}
+  .btn-go:disabled{opacity:.5;cursor:default}
+  .btn-reset{background:transparent;color:var(--ink)}
+  .btn-reset:hover{background:#EFEBDF}
+
+  /* phone + log */
+  .side{display:flex;flex-direction:column;gap:16px}
+  .phone{background:var(--ink);border-radius:20px;padding:10px;max-width:260px}
+  .phone-screen{background:#0c1a12;border-radius:12px;padding:12px;min-height:120px;
+    color:#dfe7e0;font-size:12px}
+  .phone-top{display:flex;justify-content:space-between;font-family:var(--mono);
+    font-size:9px;color:#7f9284;letter-spacing:.1em;margin-bottom:8px}
+  .sms{background:#14351f;border:1px solid #205733;border-radius:10px 10px 10px 2px;
+    padding:9px 10px;margin-top:8px;opacity:0;transform:translateY(6px);
+    transition:opacity .35s,transform .35s}
+  .sms.show{opacity:1;transform:none}
+  .sms .from{font-family:var(--mono);font-size:9.5px;color:#7fd08a;letter-spacing:.08em;margin-bottom:3px}
+  .sms .body{line-height:1.4}
+  .sms .t{font-family:var(--mono);font-size:9px;color:#6f8477;text-align:right;margin-top:5px}
+  .emptysms{color:#5f7568;font-size:11px;text-align:center;padding:22px 6px;font-style:italic}
+  .log{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .log .row{padding:6px 0;border-bottom:1px dashed var(--line2);display:flex;gap:8px}
+  .log .row .tm{color:var(--ink);flex:none}
+  footer{margin-top:26px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);
+    padding-top:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="2" y="2" width="36" height="36" rx="9" fill="#1B5E20"/>
+      <path d="M11 26 V15 h4 v11 M20 26 V15 M20 20 h6 M20 15 h6 M20 26 h6" stroke="#F5F2EA" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <circle cx="30" cy="12" r="3.2" fill="#E8A317"/>
+    </svg>
+    <div class="brand">
+      <h1>CALFNEST&nbsp;Sentinel</h1>
+      <p>Cooperative welfare monitor</p>
+    </div>
+    <div class="hspace"></div>
+    <span class="pill"><span class="dot"></span>Edge &middot; running offline</span>
+    <span class="pill" id="apiPill"><span class="dot" style="background:#C9821A"></span>Model: simulation</span>
+    <span class="clock" id="clock">--:--</span>
+  </header>
+
+  <div class="grid">
+    <!-- herd -->
+    <section>
+      <p class="eyebrow">Herd &middot; <span id="herdCount">6</span> pens</p>
+      <div class="herd" id="herd"></div>
+    </section>
+
+    <!-- detail -->
+    <section class="panel" id="detail">
+      <div class="detail-head">
+        <div class="who">
+          <h2 id="dName">—</h2>
+          <div class="tag" id="dTag">—</div>
+        </div>
+        <div class="hspace"></div>
+        <span class="statusword" id="dStatus">GREEN</span>
+      </div>
+
+      <div class="hero">
+        <div class="gauge-wrap">
+          <svg viewBox="0 0 210 130" width="210" height="130" id="gauge"></svg>
+          <div class="gauge-val"><b id="riskNum">0</b><span>AI risk</span></div>
+        </div>
+        <div class="readouts">
+          <div class="ro"><span class="k">CALFNEST Sentinel (AI) risk</span><span class="v" id="roAI">0 / 100</span></div>
+          <div class="ro"><span class="k">Stress Index (rule failsafe)</span><span class="v" id="roSIS">0 / 100</span></div>
+          <div class="ro"><span class="k">Acoustic reading</span><span class="v" id="roAco">normal</span></div>
+          <div class="ro"><span class="k">Per-animal anomaly</span><span class="v" id="roAno">within baseline</span></div>
+          <div class="ro"><span class="k">Model API (live)</span><span class="v" id="roModel">— (start API)</span></div>
+          <div class="leadline" id="leadline"></div>
+        </div>
+      </div>
+
+      <div class="chips">
+        <span class="chip">Pen&nbsp;<b id="cPen">—</b></span>
+        <span class="chip" id="cAcoustic">Calls: <b>normal</b></span>
+        <span class="chip" id="cAnomaly">Baseline: <b>OK</b></span>
+        <span class="chip">Sampling <b>60&nbsp;s</b></span>
+      </div>
+
+      <p class="eyebrow" style="margin-top:18px">Live sensor streams</p>
+      <div class="sensors" id="sensors"></div>
+
+      <div class="controls">
+        <button class="btn-go" id="simBtn">▶ Simulate a decline</button>
+        <button class="btn-reset" id="resetBtn">Reset</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid" style="margin-top:18px">
+    <section>
+      <p class="eyebrow">Farmer's phone</p>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-top"><span>MESSAGES</span><span id="phoneNet">USSD</span></div>
+          <div id="smsHost"><div class="emptysms">No alerts. All animals within range.</div></div>
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <p class="eyebrow">Event log</p>
+      <div class="log" id="log"><div class="row"><span class="tm">--:--</span><span>Monitor started &middot; all pens green</span></div></div>
+    </section>
+  </div>
+
+  <footer>
+    <span>CALFNEST&trade; Sentinel &middot; connects to the model API (models/serve.py) when running, else on-device simulation</span>
+    <span>Risk bands: GREEN 0–30 &middot; AMBER 31–60 &middot; RED 61–100</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const API_BASE="http://localhost:8000"; let apiUp=false;
+function setPill(up){const p=document.getElementById("apiPill");if(!p)return;
+  p.innerHTML='<span class="dot" style="background:'+(up?'#2E7D32':'#C9821A')+'"></span>Model: '+(up?'live API':'simulation');}
+async function checkApi(){try{const r=await fetch(API_BASE+"/health",{cache:"no-store"});apiUp=r.ok;}catch(e){apiUp=false;}setPill(apiUp);}
+function normWindow(a){const N=6,g=k=>a.hist[k].slice(-N);return{
+  intake:g("intake").map(v=>v/96), vocal:g("vocal").map(v=>v/26),
+  movement:g("movement").map(v=>v/146), environment:g("temp").map(v=>0.3+(v-38.9)*0.5),
+  ammonia:g("ammonia").map(v=>v/30)};}
+async function apiScore(a){if(!apiUp)return null;try{
+  const r=await fetch(API_BASE+"/predict",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({streams:normWindow(a)})});
+  if(!r.ok)return null;return (await r.json()).risk;}catch(e){return null;}}
+
+const SENSORS=[
+  {key:"intake",lab:"Milk intake",unit:"%",base:96,dir:-1,fmt:v=>Math.round(v)},
+  {key:"vocal",lab:"Vocalisation",unit:"/min",base:4,dir:1,fmt:v=>v.toFixed(1)},
+  {key:"movement",lab:"Activity",unit:"%",base:88,dir:-1,fmt:v=>Math.round(v)},
+  {key:"temp",lab:"Body temp",unit:"°C",base:38.9,dir:1,fmt:v=>v.toFixed(1)},
+  {key:"humidity",lab:"Pen humidity",unit:"%",base:55,dir:1,fmt:v=>Math.round(v)},
+  {key:"ammonia",lab:"Ammonia",unit:"ppm",base:6,dir:1,fmt:v=>v.toFixed(1)},
+];
+const HIST=24;
+function mkAnimal(id,name,pen,species,sev0){
+  const s={id,name,pen,species,sev:sev0||0,streams:{},hist:{}};
+  SENSORS.forEach(se=>{s.streams[se.key]=se.base;s.hist[se.key]=Array.from({length:HIST},()=>se.base*(1+(Math.random()-.5)*.03));});
+  return s;
+}
+let animals=[
+  mkAnimal("p1","Thabo",1,"Calf · 2 wks",0),
+  mkAnimal("p2","Chipo",2,"Goat kid · 5 days",0),
+  mkAnimal("p3","Nandi",3,"Goat kid · 8 days",0),
+  mkAnimal("p4","Sipho",4,"Calf · 3 wks",0),
+  mkAnimal("p5","Ruva",5,"Goat kid · 4 days",0.34),
+  mkAnimal("p6","Tendai",6,"Calf · 1 wk",0),
+];
+let selId="p3", timer=null, aiCrossS=null, ruleCrossS=null, smsSent=false;
+const DECLINE_WINDOW_H=48; // sim hours represented by sev 0→1
+
+// ---- model surrogates (honest: AI reads the trajectory, rule reads absolutes) ----
+function sisScore(a){ // rule: absolute sub-scores, weighted — lags
+  const st=a.streams;
+  const intake=clamp((96-st.intake)/60);          // drop from ~96
+  const vocal=clamp((st.vocal-4)/14);
+  const move=clamp((88-st.movement)/60);
+  const env=clamp((st.temp-38.9)/2.2);
+  const amm=clamp((st.ammonia-6)/18);
+  return Math.round(100*clamp(.30*intake+.25*vocal+.20*move+.15*env+.10*amm));
+}
+function aiRisk(a){ // AI: trajectory-aware — leads. blends level with rate of change
+  const s=a.sev;
+  const h=a.hist.intake, slope=(h[h.length-1]-h[h.length-6])/6; // recent intake slope (neg = falling)
+  const trend=clamp(-slope/2.2);
+  const level=clamp(1.25*s);
+  return Math.round(100*clamp(0.12 + 0.62*level + 0.30*trend));
+}
+function clamp(x){return x<0?0:x>1?1:x;}
+function band(v){return v<=30?"green":v<=60?"amber":"red";}
+function bandWord(v){return v<=30?"GREEN":v<=60?"AMBER":"RED";}
+
+function applySev(a){ // set sensor values from severity
+  const s=a.sev;
+  a.streams.intake   = 96 - 58*s + noise(1.2);
+  a.streams.vocal    = 4  + 11*s + noise(.4);
+  a.streams.movement = 88 - 52*s + noise(1.4);
+  a.streams.temp     = 38.9 + 1.6*s + noise(.08);
+  a.streams.humidity = 55 + 6*Math.sin(Date.now()/4000) + noise(1);
+  a.streams.ammonia  = 6 + 12*s + noise(.5);
+  SENSORS.forEach(se=>{const arr=a.hist[se.key];arr.push(a.streams[se.key]);if(arr.length>HIST)arr.shift();});
+}
+function noise(m){return (Math.random()-.5)*2*m;}
+
+// ---- rendering ----
+const $=s=>document.querySelector(s);
+function sel(){return animals.find(a=>a.id===selId);}
+function renderHerd(){
+  const host=$("#herd");host.innerHTML="";
+  animals.forEach(a=>{
+    const r=aiRisk(a),b=band(r);
+    const el=document.createElement("div");
+    el.className="animal "+b+(a.id===selId?" sel":"");
+    el.onclick=()=>{selId=a.id;renderAll();};
+    el.innerHTML=`<span class="stat ${b}"></span>
+      <div><div class="an-name">${a.name}</div><div class="an-sub">Pen ${a.pen} · ${a.species}</div></div>
+      <div class="an-risk">${r}<small>RISK</small></div>`;
+    host.appendChild(el);
+  });
+}
+function arc(cx,cy,rad,a0,a1){const p=(a,r)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];
+  const[x0,y0]=p(a0,rad),[x1,y1]=p(a1,rad);const large=a1-a0>Math.PI?1:0;
+  return `M ${x0} ${y0} A ${rad} ${rad} 0 ${large} 1 ${x1} ${y1}`;}
+function renderGauge(r){
+  const g=$("#gauge");const cx=105,cy=112,rad=88;const A=Math.PI,B=2*Math.PI;
+  const seg=(f0,f1,col)=>`<path d="${arc(cx,cy,rad,A+f0*Math.PI,A+f1*Math.PI)}" stroke="${col}" stroke-width="15" fill="none" stroke-linecap="round"/>`;
+  const frac=clamp(r/100);const ang=A+frac*Math.PI;
+  const nx=cx+rad*Math.cos(ang),ny=cy+rad*Math.sin(ang);
+  g.innerHTML=seg(0,.30,"#2E7D32")+seg(.31,.60,"#C9821A")+seg(.61,1,"#C0392B")
+    +`<circle cx="${nx}" cy="${ny}" r="8" fill="#12261B"/><circle cx="${nx}" cy="${ny}" r="3.5" fill="#F5F2EA"/>`;
+}
+function spark(vals,dir){
+  const w=150,h=30,min=Math.min(...vals),max=Math.max(...vals),rng=(max-min)||1;
+  const pts=vals.map((v,i)=>[i/(vals.length-1)*w, h-((v-min)/rng)*(h-4)-2]);
+  const d=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const last=vals[vals.length-1],first=vals[0];
+  const bad=(dir<0)?(last<first):(last>first);
+  const col=bad?"#C0392B":"#2E7D32";
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="30"><path d="${d}" fill="none" stroke="${col}" stroke-width="2"/></svg>`;
+}
+function renderSensors(a){
+  const host=$("#sensors");host.innerHTML="";
+  SENSORS.forEach(se=>{
+    const v=a.streams[se.key];
+    const el=document.createElement("div");el.className="tile";
+    el.innerHTML=`<div class="lab">${se.lab}</div><div class="num">${se.fmt(v)}<span style="font-size:10px;color:var(--muted)"> ${se.unit}</span></div>${spark(a.hist[se.key],se.dir)}`;
+    host.appendChild(el);
+  });
+}
+function renderDetail(){
+  const a=sel();const r=aiRisk(a),sis=sisScore(a),b=band(r);
+  $("#dName").textContent=a.name;
+  $("#dTag").textContent=`Pen ${a.pen} · ${a.species} · ID ${a.id.toUpperCase()}`;
+  const sw=$("#dStatus");sw.textContent=bandWord(r);sw.className="statusword "+b;
+  $("#riskNum").textContent=r;renderGauge(r);
+  $("#roAI").textContent=r+" / 100";
+  $("#roSIS").textContent=sis+" / 100";
+  const aco=r>55?"distress call detected":r>35?"unsettled":"normal";
+  const ano=r>45?"drifting from baseline":"within baseline";
+  $("#roAco").textContent=aco;$("#roAno").textContent=ano;
+  $("#cPen").textContent=a.pen;
+  $("#cAcoustic").innerHTML=`Calls: <b>${aco.split(" ")[0]}</b>`;
+  $("#cAcoustic").className="chip"+(r>55?" warn":"");
+  $("#cAnomaly").innerHTML=`Baseline: <b>${r>45?"drift":"OK"}</b>`;
+  $("#cAnomaly").className="chip"+(r>45?" warn":"");
+  const roModel=document.getElementById("roModel");
+  if(apiUp){apiScore(a).then(v=>{if(roModel)roModel.textContent=(v==null?"unavailable":v+" / 100 (model)");});}
+  else if(roModel)roModel.textContent="— (run: make serve)";
+  renderSensors(a);
+  // lead-time line
+  const ll=$("#leadline");
+  if(aiCrossS!=null&&ruleCrossS!=null){
+    const lead=((ruleCrossS-aiCrossS)*DECLINE_WINDOW_H).toFixed(1);
+    ll.className="leadline show";
+    ll.innerHTML=`⚡ AI raised the alarm <b>${lead} h</b> before the rule would have — earlier action, same animal.`;
+  } else if(aiCrossS!=null){
+    ll.className="leadline show";
+    ll.innerHTML=`⚡ AI alert fired. Watching whether the rule confirms…`;
+  } else ll.className="leadline";
+}
+function renderAll(){renderHerd();renderDetail();}
+
+// ---- simulation ----
+function log(msg){
+  const d=new Date();const t=hhmm(d);
+  const host=$("#log");
+  const row=document.createElement("div");row.className="row";
+  row.innerHTML=`<span class="tm">${t}</span><span>${msg}</span>`;
+  host.prepend(row);
+}
+function hhmm(d){return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
+function fireSMS(a){
+  const host=$("#smsHost");
+  $("#phoneNet").textContent="SMS";
+  host.innerHTML=`<div class="sms" id="theSMS">
+    <div class="from">CALFNEST ALERT</div>
+    <div class="body">Pen ${a.pen} (${a.name}): feeding down &amp; less active. Risk HIGH — check the animal now.</div>
+    <div class="t">${hhmm(new Date())} · reply 1 for advice</div></div>`;
+  requestAnimationFrame(()=>$("#theSMS").classList.add("show"));
+}
+function simulate(){
+  const a=sel();
+  if(timer)clearInterval(timer);
+  aiCrossS=null;ruleCrossS=null;smsSent=false;
+  $("#simBtn").disabled=true;$("#simBtn").textContent="● Declining…";
+  log(`Pen ${a.pen} (${a.name}) — decline simulation started`);
+  const step=0.012;
+  timer=setInterval(()=>{
+    a.sev=Math.min(1,a.sev+step);
+    applySev(a);
+    const r=aiRisk(a),sis=sisScore(a);
+    if(aiCrossS==null&&r>=61){aiCrossS=a.sev;log(`AI (Sentinel) crossed RED for ${a.name} — early warning`);}
+    if(aiCrossS!=null&&!smsSent){smsSent=true;fireSMS(a);log(`SMS sent to farmer for Pen ${a.pen}`);}
+    if(ruleCrossS==null&&sis>=61){ruleCrossS=a.sev;log(`Rule (SIS) would only now flag ${a.name}`);}
+    renderAll();
+    if(a.sev>=1){clearInterval(timer);timer=null;$("#simBtn").disabled=false;$("#simBtn").textContent="▶ Simulate a decline";}
+  },140);
+}
+function reset(){
+  if(timer){clearInterval(timer);timer=null;}
+  animals=[
+    mkAnimal("p1","Thabo",1,"Calf · 2 wks",0),
+    mkAnimal("p2","Chipo",2,"Goat kid · 5 days",0),
+    mkAnimal("p3","Nandi",3,"Goat kid · 8 days",0),
+    mkAnimal("p4","Sipho",4,"Calf · 3 wks",0),
+    mkAnimal("p5","Ruva",5,"Goat kid · 4 days",0.34),
+    mkAnimal("p6","Tendai",6,"Calf · 1 wk",0),
+  ];
+  animals.forEach(applySev);
+  aiCrossS=null;ruleCrossS=null;smsSent=false;
+  $("#smsHost").innerHTML=`<div class="emptysms">No alerts. All animals within range.</div>`;
+  $("#phoneNet").textContent="USSD";
+  $("#simBtn").disabled=false;$("#simBtn").textContent="▶ Simulate a decline";
+  $("#log").innerHTML="";log("Monitor reset · all pens green");
+  renderAll();
+}
+$("#simBtn").onclick=simulate;
+$("#resetBtn").onclick=reset;
+setInterval(()=>{$("#clock").textContent=hhmm(new Date());},1000);
+$("#clock").textContent=hhmm(new Date());
+animals.forEach(applySev);
+renderAll();log("Monitor started · all pens green");
+checkApi();setInterval(checkApi,5000);
+</script>
+</body>
+</html>

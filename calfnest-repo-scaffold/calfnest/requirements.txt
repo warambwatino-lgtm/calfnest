@@ -1,0 +1,5 @@
+# Runtime pins (mirrors pyproject). Generate a hash-locked lockfile before
+# submission:  uv lock   (or)   pip-compile --generate-hashes
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.5.1
